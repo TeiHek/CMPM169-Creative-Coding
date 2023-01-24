@@ -11,18 +11,126 @@ const VALUE1 = 1;
 const VALUE2 = 2;
 
 // Globals
-let myInstance;
 let canvasContainer;
+let screenDivisions = 200;
+var field;
+console.log("← →   Decrease/Increase x complexity");
+console.log("↑ ↓   Increase/decrease vertical line spacing");
+console.log("- +   Decrease/Increase line length");
+console.log("< >   Decrease/Increase line offset");
+console.log("Space New seed")
 
-class MyClass {
-    constructor(param1, param2) {
-        this.property1 = param1;
-        this.property2 = param2;
+class Line {
+  constructor(xNoiseFreq, activeSegments, segmentOffset, xIncrement, yOffset){
+    this.xNoiseFreq = xNoiseFreq;
+    this.points = Array();
+    this.xIncrement = xIncrement;
+    this.activeSegments = activeSegments;
+    this.currentSegment = segmentOffset % screenDivisions;
+    this.yOffset = yOffset;
+    
+    
+    // For loop ensures points are drawn past left and right edges of screen
+    for (let i = -1; i < screenDivisions + 1; i++) {
+      this.points.push(new Point( i * this.xIncrement, noise((i * this.xIncrement) * this.xNoiseFreq) * height + this.yOffset ))
     }
+  }
 
-    myMethod() {
-        // code to run when method is called
+  Draw() {
+    let segmentTail = this.currentSegment - this.activeSegments < 0 ? 0 : this.currentSegment - this.activeSegments;
+    let segmentHead = this.currentSegment > screenDivisions + 1 ? screenDivisions + 1 : this.currentSegment
+    beginShape();
+    for (let i = segmentTail; i < segmentHead; i++) {
+      curveVertex(this.points[i].x, this.points[i].y);
     }
+    endShape();
+    if(segmentTail >= screenDivisions) {
+      this.currentSegment = 0
+    } else {
+      this.currentSegment += 1;
+    }
+    
+  }
+}
+
+class Point {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+}
+
+class Field {
+  constructor(screenDivisions) {
+    this.verticalLineSpacing = 50;
+    
+    this.activeSegments = 50;
+    this.startingOffset = 1;
+    this.xFreq = 0.01;
+    this.xFreqStep = 1.1
+    this.lineSet = Array();
+    this.screenDivisions = screenDivisions
+    this.inc = width/this.screenDivisions;
+    }
+  
+  GenerateNewLines(newSeed){
+    if(newSeed)
+      noiseSeed(frameCount);
+    
+    // Clear array
+    this.lineSet = [];
+    for (let i = 0; i < 4*height/this.verticalLineSpacing; i++) {
+    this.lineSet.push(new Line(this.xFreq, this.activeSegments, this.startingOffset * i ,this.inc, (width * -1) + i * this.verticalLineSpacing));
+    }
+  }
+  
+  changeParams(key) {
+    if (key === 'ArrowUp') {
+      this.verticalLineSpacing++;
+      this.GenerateNewLines(false);
+    } else if (key === 'ArrowDown') {
+      if(this.verticalLineSpacing > 1) {
+        this.verticalLineSpacing--;
+        this.GenerateNewLines(false);
+      }
+    } else if (key === 'ArrowLeft') {
+      this.xFreq /= this.xFreqStep;
+      this.GenerateNewLines(false);
+    } else if (key === 'ArrowRight') {
+      this.xFreq *= this.xFreqStep;
+      this.GenerateNewLines(false);
+    } else if (key === " ") {
+      this.GenerateNewLines(true);
+    } else if (key === '+' || key === '=') {
+      if(this.activeSegments < this.screenDivisions) {
+        this.activeSegments++;
+        this.lineSet.forEach(line => (line.activeSegments++))
+      }
+    } else if (key === '-' || key === '_') {
+      if(this.activeSegments > 1) {
+        this.activeSegments--;
+        this.lineSet.forEach(line => (line.activeSegments--))
+      }
+    } else if(key === '.' || key === '>') {
+      if(this.startingOffset < this.screenDivisions) {
+        this.startingOffset++
+        this.GenerateNewLines(false)
+      }
+    } else if(key === ',' || key === '<') {
+        if(this.startingOffset > -this.screenDivisions) {
+          this.startingOffset--
+          this.GenerateNewLines(false)
+        }
+    }
+  }
+  
+  Draw() {
+    background(0);
+    this.lineSet.forEach(line => {
+      line.Draw(); 
+    })
+  }
+  
 }
 
 // setup() function is called once when the program starts
@@ -36,32 +144,19 @@ function setup() {
         console.log("Resizing...");
         resizeCanvas(canvasContainer.width(), canvasContainer.height());
     });
-    // create an instance of the class
-    myInstance = new MyClass(VALUE1, VALUE2);
 
-    var centerHorz = windowWidth / 2;
-    var centerVert = windowHeight / 2;
+    noFill();
+    stroke(255);
+    field = new Field(screenDivisions);
+    field.GenerateNewLines(false);
 }
 
 // draw() function is called repeatedly, it's the main animation loop
 function draw() {
-    background(220);    
-    // call a method on the instance
-    myInstance.myMethod();
-
-    // Put drawings here
-    var centerHorz = canvasContainer.width() / 2 - 125;
-    var centerVert = canvasContainer.height() / 2 - 125;
-    fill(234, 31, 81);
-    noStroke();
-    rect(centerHorz, centerVert, 250, 250);
-    fill(255);
-    textStyle(BOLD);
-    textSize(140);
-    text("p5*", centerHorz + 10, centerVert + 200);
+    field.Draw();
 }
 
-// mousePressed() function is called once after every time a mouse button is pressed
-function mousePressed() {
-    // code to run when mouse is pressed
+function keyPressed()
+{
+    field.changeParams(key);
 }
